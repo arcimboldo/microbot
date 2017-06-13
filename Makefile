@@ -1,4 +1,5 @@
-SUBDIRS=$(wildcard apps/*/.)
+SUBDIRS=$(wildcard apps/*)
+
 
 all: build
 build: $(SUBDIRS)
@@ -8,5 +9,7 @@ $(SUBDIRS):
 test:
 	go test ./...
 
-.PHONY: all test build $(SUBDIRS)
+.PHONY: all test build $(SUBDIRS) clean
 
+clean:
+	for path in $(SUBDIRS); do rm `basename $$path`; done
