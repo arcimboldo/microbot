@@ -74,13 +74,33 @@ func ListServices(url string) (map[string]Service, error) {
 		if line == "" {
 			break
 		}
-		resp, _ = http.Get(fmt.Sprintf("%s/services/%s/ip", url, line))
-		data, _ := ioutil.ReadAll(resp.Body)
+		resp, err = http.Get(fmt.Sprintf("%s/services/%s/ip", url, line))
+		if err != nil {
+			log.Printf("Unable to get IP for service %q: %q", line, err)
+			continue
+		}
+		data, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("Unable to get IP for service %q: %q", line, err)
+			continue
+		}
 		ip := string(data)
 
-		resp, _ = http.Get(fmt.Sprintf("%s/services/%s/port", url, line))
-		data, _ = ioutil.ReadAll(resp.Body)
-		port, _ := strconv.Atoi(string(data))
+		resp, err = http.Get(fmt.Sprintf("%s/services/%s/port", url, line))
+		if err != nil {
+			log.Printf("Unable to get PORT for service %q: %q", line, err)
+			continue
+		}
+		data, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("Unable to get PORT for service %q: %q", line, err)
+			continue
+		}
+		port, err := strconv.Atoi(string(data))
+		if err != nil {
+			log.Printf("Unable to get PORT for service %q: %q", line, err)
+			continue
+		}
 
 		services[line] = Service{Name: line, Ip: ip, Port: port}
 	}
