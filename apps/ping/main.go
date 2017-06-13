@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"time"
@@ -9,12 +10,15 @@ import (
 )
 
 func main() {
+	name := flag.String("n", "pippo", "Name")
+	flag.Parse()
 
-	err := discovery.CheckInBlock("http://localhost:8080", "pippo", "192.168.0.11", 1234)
+	s := discovery.NewService(*name, "192.168.0.11", 1234)
+	err := s.CheckInBlock("http://localhost:8080")
 	if err != nil {
 		log.Panic(err)
 	}
-	defer discovery.CheckOut("http://localhost:8080", "pippo")
+	defer s.CheckOut("http://localhost:8080")
 	fmt.Println("Connected. Waiting 4s before exiting")
 
 	time.Sleep(4 * time.Second)

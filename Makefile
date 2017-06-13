@@ -1,11 +1,12 @@
 SUBDIRS=$(wildcard apps/*/.)
 
-all: $(SUBDIRS)
+all: build
+build: $(SUBDIRS)
 $(SUBDIRS):
 	go build ./$@
 
 test:
 	go test ./...
 
-.PHONY: all test $(SUBDIRS)
+.PHONY: all test build $(SUBDIRS)
 
