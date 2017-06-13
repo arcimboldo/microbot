@@ -74,9 +74,13 @@ func ListServices(url string) (map[string]Service, error) {
 		if line == "" {
 			break
 		}
-		resp, err = http.Get(fmt.Sprintf("%s/services/%s/ip", url, line))
+		resp, err := http.Get(fmt.Sprintf("%s/services/%s/ip", url, line))
 		if err != nil {
 			log.Printf("Unable to get IP for service %q: %q", line, err)
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("Unable to get IP for service %q: not found", line)
 			continue
 		}
 		data, err := ioutil.ReadAll(resp.Body)
@@ -89,6 +93,10 @@ func ListServices(url string) (map[string]Service, error) {
 		resp, err = http.Get(fmt.Sprintf("%s/services/%s/port", url, line))
 		if err != nil {
 			log.Printf("Unable to get PORT for service %q: %q", line, err)
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("Unable to get PORT for service %q: not found", line)
 			continue
 		}
 		data, err = ioutil.ReadAll(resp.Body)
