@@ -98,7 +98,7 @@ func ListServices(url string) (map[string]Service, error) {
 	services := make(map[string]Service)
 	resp, err := http.Get(url + "/services")
 	if resp != nil && resp.StatusCode == http.StatusNotFound {
-		return services, nil
+		return services, fmt.Errorf("No services found")
 	}
 	if err != nil {
 		return services, err
@@ -112,9 +112,10 @@ func ListServices(url string) (map[string]Service, error) {
 		if line == "" {
 			break
 		}
-		resp, err := http.Get(fmt.Sprintf("%s/services/%s/ip", url, line))
+
+		resp, err := http.Get(fmt.Sprintf("%s/services/%s", url, line))
 		if err != nil {
-			log.Printf("Unable to get IP for service %q: %q", line, err)
+			log.Printf("Unable to get infofor service %q: %q", line, err)
 			continue
 		}
 		if resp.StatusCode != http.StatusOK {
@@ -122,33 +123,18 @@ func ListServices(url string) (map[string]Service, error) {
 			continue
 		}
 		data, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Printf("Unable to get IP for service %q: %q", line, err)
-			continue
-		}
-		ip := string(data)
 
-		resp, err = http.Get(fmt.Sprintf("%s/services/%s/port", url, line))
+		servicedata := strings.Split(string(data), ":")
+		if len(servicedata) != 2 {
+			log.Printf("Error parsing service for %q: %q", line, string(data))
+			continue
+		}
+		port, err := strconv.Atoi(servicedata[1])
 		if err != nil {
-			log.Printf("Unable to get PORT for service %q: %q", line, err)
+			log.Printf("Wrong port for service %q: %q", line, servicedata[1])
 			continue
 		}
-		if resp.StatusCode != http.StatusOK {
-			log.Printf("Unable to get PORT for service %q: not found", line)
-			continue
-		}
-		data, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Printf("Unable to get PORT for service %q: %q", line, err)
-			continue
-		}
-		port, err := strconv.Atoi(string(data))
-		if err != nil {
-			log.Printf("Unable to get PORT for service %q: %q", line, err)
-			continue
-		}
-
-		services[line] = Service{Name: line, Ip: ip, Port: port}
+		services[line] = Service{Name: line, Ip: servicedata[0], Port: port}
 	}
 	return services, nil
 

@@ -60,10 +60,18 @@ func (n *Node) Path() string {
 }
 
 func (t *Tree) Add(path, val string) *Node {
+
+	node := t.Get(path)
+	if node != nil {
+		node.Value = val
+		node.Updated = time.Now()
+		return node
+	}
+
 	tokens := strings.Split(strings.TrimPrefix(path, "/"), "/")
 	child := Node{Name: tokens[len(tokens)-1], Value: val, Updated: time.Now()}
 
-	node := t.Root
+	node = t.Root
 	for i := 0; i < len(tokens); i++ {
 		found := false
 		for _, children := range node.Children {
@@ -74,10 +82,11 @@ func (t *Tree) Add(path, val string) *Node {
 			}
 		}
 		if !found && i < len(tokens)-1 {
-			node = node.Append(&Node{Name: tokens[i], Updated: time.Now()})
+			node = node.Append(&Node{Name: tokens[i]})
 		}
 	}
 	child.Parent = node
+	child.Updated = time.Now()
 	node.Append(&child)
 	return &child
 }

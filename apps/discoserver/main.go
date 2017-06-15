@@ -21,14 +21,25 @@ func init() {
 	flag.Parse()
 }
 
+func ttlExpired(node *tree.Node) bool {
+	if node.Path() == "/services" {
+		return false
+	} else if node.Path() == "/patterns" {
+		return false
+	} else if node.Name == "" {
+		return false
+	}
+	return time.Since(node.Updated) > time.Duration(ttlFlag)*time.Second
+}
+
 func HandleGet(w http.ResponseWriter, r *http.Request) {
 	path := path.Clean(r.URL.Path)
 	node := data.Get(path)
 	if node == nil {
 		log.Printf("%s GET %s - 404 not found", r.RemoteAddr, path)
 		http.NotFound(w, r)
-	} else if time.Since(node.Updated) > time.Duration(ttlFlag)*time.Second && node.Name != "" {
-		log.Printf("Removing node %q since last update was %v which is more than %d seconds ago", node.Path(), node.Updated, ttlFlag)
+	} else if ttlExpired(node) {
+		log.Printf("Removing node %q since last update was %v which is more than %d seconds ago (%v)", node.Path(), node.Updated, ttlFlag, time.Now())
 		data.Delete(node.Path())
 		http.NotFound(w, r)
 	} else if node.Value == "" {
