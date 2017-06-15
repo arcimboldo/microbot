@@ -1,22 +1,35 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"path"
+	"time"
 
 	"github.com/arcimboldo/microbot/libs/tree"
 )
 
 var data = tree.NewTree()
 
+var ttlFlag int
+
+func init() {
+	flag.IntVar(&ttlFlag, "t", 10, "ttl of keys")
+	flag.Parse()
+}
+
 func HandleGet(w http.ResponseWriter, r *http.Request) {
 	path := path.Clean(r.URL.Path)
 	node := data.Get(path)
 	if node == nil {
 		log.Printf("%s GET %s - 404 not found", r.RemoteAddr, path)
+		http.NotFound(w, r)
+	} else if time.Since(node.Updated) > time.Duration(ttlFlag)*time.Second && node.Name != "" {
+		log.Printf("Removing node %q since last update was %v which is more than %d seconds ago", node.Path(), node.Updated, ttlFlag)
+		data.Delete(node.Path())
 		http.NotFound(w, r)
 	} else if node.Value == "" {
 		log.Printf("%s GET %s - 200 listing", r.RemoteAddr, path)

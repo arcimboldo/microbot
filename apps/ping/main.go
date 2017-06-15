@@ -18,8 +18,9 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
-	defer s.CheckOut("http://localhost:8080")
-	fmt.Println("Connected. Waiting 4s before exiting")
-
-	time.Sleep(4 * time.Second)
+	defer s.CheckOut()
+	fmt.Println("Never ending for loop")
+	for {
+		time.Sleep(10 * time.Second)
+	}
 }

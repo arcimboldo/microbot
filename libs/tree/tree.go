@@ -3,6 +3,7 @@ package tree
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 type Tree struct {
@@ -14,6 +15,7 @@ type Node struct {
 	Children []*Node
 	Parent   *Node
 	Value    string
+	Updated  time.Time
 }
 
 func (t *Tree) Get(path string) *Node {
@@ -59,7 +61,7 @@ func (n *Node) Path() string {
 
 func (t *Tree) Add(path, val string) *Node {
 	tokens := strings.Split(strings.TrimPrefix(path, "/"), "/")
-	child := Node{Name: tokens[len(tokens)-1], Value: val}
+	child := Node{Name: tokens[len(tokens)-1], Value: val, Updated: time.Now()}
 
 	node := t.Root
 	for i := 0; i < len(tokens); i++ {
@@ -72,7 +74,7 @@ func (t *Tree) Add(path, val string) *Node {
 			}
 		}
 		if !found && i < len(tokens)-1 {
-			node = node.Append(&Node{Name: tokens[i]})
+			node = node.Append(&Node{Name: tokens[i], Updated: time.Now()})
 		}
 	}
 	child.Parent = node

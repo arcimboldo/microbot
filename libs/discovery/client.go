@@ -11,22 +11,64 @@ import (
 )
 
 type Service struct {
-	Name string
-	Ip   string
-	Port int
+	Name      string
+	Ip        string
+	Port      int
+	done      chan int
+	Url       string
+	checkedIn bool
 }
 
 // CheckIn registers the local server to the discovery server.
-func (s *Service) CheckIn(url string) error {
-	_, err := http.Post(url+fmt.Sprintf("/services/%s/ip", s.Name), "text/plain", strings.NewReader(s.Ip))
+
+func (s *Service) checkin() error {
+	_, err := http.Post(s.Url+fmt.Sprintf("/services/%s", s.Name), "text/plain", strings.NewReader(fmt.Sprintf("%s:%d", s.Ip, s.Port)))
 	if err != nil {
 		return err
 	}
 
-	_, err = http.Post(url+fmt.Sprintf("/services/%s/port", s.Name), "text/plain", strings.NewReader(fmt.Sprintf("%d", s.Port)))
+	return nil
+}
+
+func (s *Service) checkout() error {
+	if !s.checkedIn {
+		return fmt.Errorf("Service not checked in, check in first")
+	}
+
+	req, err := http.NewRequest("DELETE", s.Url+fmt.Sprintf("/services/%s", s.Name), nil)
 	if err != nil {
 		return err
 	}
+	_, err = http.DefaultClient.Do(req)
+	return err
+}
+
+func (s *Service) CheckIn(url string) error {
+	if s.checkedIn {
+		return fmt.Errorf("Service already checked in at %q: check out first.", s.Url)
+	}
+	s.Url = url
+
+	err := s.checkin()
+	if err != nil {
+		return err
+	}
+
+	s.done = make(chan int)
+
+	go func() {
+		for {
+			select {
+			case <-s.done:
+				log.Println("Checking out as expected")
+				s.CheckOut()
+			case <-time.After(5 * time.Second):
+				log.Println("Checking in again")
+				s.checkin()
+			}
+		}
+	}()
+
 	return nil
 }
 
@@ -43,17 +85,13 @@ func (s *Service) CheckInBlock(url string) error {
 	}
 }
 
-func (s *Service) CheckOut(url string) error {
-	req, err := http.NewRequest("DELETE", url+fmt.Sprintf("/services/%s", s.Name), nil)
-	if err != nil {
-		return err
-	}
-	_, err = http.DefaultClient.Do(req)
-	return err
+func (s *Service) CheckOut() error {
+	s.done <- 1
+	return nil
 }
 
 func NewService(name, ip string, port int) *Service {
-	return &Service{Name: name, Ip: ip, Port: port}
+	return &Service{Name: name, Ip: ip, Port: port, checkedIn: false}
 }
 
 func ListServices(url string) (map[string]Service, error) {
