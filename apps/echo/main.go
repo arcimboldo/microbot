@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 
@@ -11,8 +11,7 @@ import (
 )
 
 func HandleData(w http.ResponseWriter, r *http.Request) {
-	content, _ := ioutil.ReadAll(r.Body)
-	fmt.Fprintf(w, string(content))
+	io.Copy(w, r.Body)
 }
 
 func main() {
@@ -23,6 +22,8 @@ func main() {
 	flag.Parse()
 
 	s := discovery.NewService(*name, "192.168.0.11", *port)
+	s.AddRegexp(".*")
+
 	err := s.CheckInBlock(*url)
 	if err != nil {
 		log.Panic(err)

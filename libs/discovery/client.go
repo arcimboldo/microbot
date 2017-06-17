@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -14,19 +16,32 @@ type Service struct {
 	Name      string
 	Ip        string
 	Port      int
-	done      chan int
 	Url       string
+	Rxs       []*regexp.Regexp
+	done      chan int
 	checkedIn bool
 }
 
 // CheckIn registers the local server to the discovery server.
 
+func (s *Service) URL() string {
+	return fmt.Sprintf("http://%s:%d", s.Ip, s.Port)
+}
+
 func (s *Service) checkin() error {
-	_, err := http.Post(s.Url+fmt.Sprintf("/services/%s", s.Name), "text/plain", strings.NewReader(fmt.Sprintf("%s:%d", s.Ip, s.Port)))
+	_, err := http.Post(fmt.Sprintf("%s/services/%s", s.Url, s.Name), "text/plain", strings.NewReader(fmt.Sprintf("%s:%d", s.Ip, s.Port)))
 	if err != nil {
 		return err
 	}
 
+	for i, re := range s.Rxs {
+		url := fmt.Sprintf("%s/services/%s/re/%d", s.Url, s.Name, i)
+		_, err = http.Post(url, "text/plain", strings.NewReader(re.String()))
+		if err != nil {
+			log.Printf("Ignoring error: unable to push  regexp %q to %q: %v", re, url, err)
+			continue
+		}
+	}
 	return nil
 }
 
@@ -41,6 +56,15 @@ func (s *Service) checkout() error {
 	}
 	_, err = http.DefaultClient.Do(req)
 	return err
+}
+
+func (s *Service) AddRegexp(re string) error {
+	rex, err := regexp.Compile(re)
+	if err != nil {
+		return err
+	}
+	s.Rxs = append(s.Rxs, rex)
+	return nil
 }
 
 func (s *Service) CheckIn(url string) error {
@@ -94,8 +118,8 @@ func NewService(name, ip string, port int) *Service {
 	return &Service{Name: name, Ip: ip, Port: port, checkedIn: false}
 }
 
-func ListServices(url string) (map[string]Service, error) {
-	services := make(map[string]Service)
+func ListServices(url string) (map[string]*Service, error) {
+	services := make(map[string]*Service)
 	resp, err := http.Get(url + "/services")
 	if resp != nil && resp.StatusCode == http.StatusNotFound {
 		return services, fmt.Errorf("No services found")
@@ -108,33 +132,68 @@ func ListServices(url string) (map[string]Service, error) {
 		return services, nil
 	}
 
-	for _, line := range strings.Split(string(content), "\n") {
-		if line == "" {
+	for _, name := range strings.Split(string(content), "\n") {
+		if name == "" {
 			break
 		}
 
-		resp, err := http.Get(fmt.Sprintf("%s/services/%s", url, line))
+		resp, err := http.Get(fmt.Sprintf("%s/services/%s", url, name))
 		if err != nil {
-			log.Printf("Unable to get infofor service %q: %q", line, err)
+			log.Printf("Unable to get info for service %q: %q", name, err)
 			continue
 		}
 		if resp.StatusCode != http.StatusOK {
-			log.Printf("Unable to get IP for service %q: not found", line)
+			log.Printf("Unable to get IP for service %q: not found", name)
 			continue
 		}
 		data, err := ioutil.ReadAll(resp.Body)
 
 		servicedata := strings.Split(string(data), ":")
 		if len(servicedata) != 2 {
-			log.Printf("Error parsing service for %q: %q", line, string(data))
+			log.Printf("Error parsing service for %q: %q", name, string(data))
 			continue
 		}
 		port, err := strconv.Atoi(servicedata[1])
 		if err != nil {
-			log.Printf("Wrong port for service %q: %q", line, servicedata[1])
+			log.Printf("Wrong port for service %q: %q", name, servicedata[1])
 			continue
 		}
-		services[line] = Service{Name: line, Ip: servicedata[0], Port: port}
+		newservice := Service{Name: name, Ip: servicedata[0], Port: port}
+		log.Printf("Adding service %s at %s", newservice.Name, newservice.URL())
+		services[name] = &newservice
+
+		// Find regexps
+		resp, err = http.Get(fmt.Sprintf("%s/services/%s/re", url, name))
+		if err != nil {
+			log.Printf("Unable to list regexps for service %q: %v", name, err)
+			return services, nil
+		}
+		data, err = ioutil.ReadAll(resp.Body)
+		indexes := []int{}
+		for _, line := range strings.Split(string(data), "\n") {
+			i, err := strconv.Atoi(line)
+			if err == nil {
+				indexes = append(indexes, i)
+			}
+		}
+
+		sort.Ints(indexes)
+		for _, i := range indexes {
+			log.Printf("Regexp number %d for service %s", i, newservice.Name)
+			resp, err := http.Get(fmt.Sprintf("%s/services/%s/re/%d", url, name, i))
+			if err != nil {
+				log.Printf("Unable to get regexp %q for service %q: %v", i, name, err)
+				continue
+			}
+			data, _ := ioutil.ReadAll(resp.Body)
+			line := string(data)
+			re, err := regexp.Compile(line)
+			if err != nil {
+				log.Printf("Invalid regexp %q for service %q: %v", line, name, err)
+			} else {
+				newservice.Rxs = append(newservice.Rxs, re)
+			}
+		}
 	}
 	return services, nil
 

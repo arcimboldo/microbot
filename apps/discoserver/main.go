@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/arcimboldo/microbot/libs/tree"
@@ -22,14 +23,15 @@ func init() {
 }
 
 func ttlExpired(node *tree.Node) bool {
-	if node.Path() == "/services" {
-		return false
-	} else if node.Path() == "/patterns" {
-		return false
-	} else if node.Name == "" {
+	tokens := strings.Split(node.Path(), "/")
+	if len(tokens) != 3 {
 		return false
 	}
-	return time.Since(node.Updated) > time.Duration(ttlFlag)*time.Second
+	if tokens[1] == "services" {
+		return time.Since(node.Updated) > time.Duration(ttlFlag)*time.Second
+	}
+	return false
+
 }
 
 func HandleGet(w http.ResponseWriter, r *http.Request) {
